@@ -1,0 +1,130 @@
+# Galileo MCP Sandboxing - Docker Configuration
+# Esto aísla los MCPs en contenedores separados
+
+version: '3.8'
+
+services:
+  # Filesystem MCP en sandbox
+  mcp-filesystem:
+    image: alpine:3.19
+    container_name: galileo-mcp-filesystem
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp:size=10M,noexec,nosuid
+    volumes:
+      # Solo estos directorios son accesibles
+      - ./data:/home/user/data:ro
+      - ./projects:/home/user/projects:ro
+      - ./outputs:/home/user/outputs:rw
+    command: >
+      sh -c "apk add --no-cache nodejs npm && 
+             npm install -g @modelcontextprotocol/server-filesystem &&
+             npx @modelcontextprotocol/server-filesystem /home/user/data"
+    restart: unless-stopped
+    networks:
+      - galileo-internal
+
+  # Memory MCP
+  mcp-memory:
+    image: alpine:3.19
+    container_name: galileo-mcp-memory
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp:size=10M,noexec,nosuid
+    volumes:
+      - ./memory/mcp-storage:/data:rw
+    command: >
+      sh -c "apk add --no-cache nodejs npm && 
+             npm install -g @modelcontextprotocol/server-memory &&
+             npx @modelcontextprotocol/server-memory --storage /data"
+    restart: unless-stopped
+    networks:
+      - galileo-internal
+
+  # Git MCP
+  mcp-git:
+    image: alpine:3.19
+    container_name: galileo-mcp-git
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp:size=10M,noexec,nosuid
+    volumes:
+      - ./.git:/repo:ro
+      - ./workspace:/workspace:ro
+    command: >
+      sh -c "apk add --no-cache nodejs npm git && 
+             npm install -g @modelcontextprotocol/server-git &&
+             npx @modelcontextprotocol/server-git /workspace"
+    restart: unless-stopped
+    networks:
+      - galileo-internal
+
+  # Fetch MCP con whitelist
+  mcp-fetch:
+    image: alpine:3.19
+    container_name: galileo-mcp-fetch
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp:size=10M,noexec,nosuid
+    # Solo acceso a internet, no acceso a red local
+    networks:
+      - galileo-external
+    command: >
+      sh -c "apk add --no-cache nodejs npm && 
+             npm install -g @modelcontextprotocol/server-fetch &&
+             npx @modelcontextprotocol/server-fetch"
+    restart: unless-stopped
+    networks:
+      - galileo-external
+
+networks:
+  # Red interna para MCPs
+  galileo-internal:
+    driver: bridge
+    internal: false
+  
+  # Red externa limitada (solo internet)
+  galileo-external:
+    driver: bridge
+    internal: true
+    # No tiene acceso a la red del host
+    # Solo puede salir a internet (si se configura como gateway)
+
+volumes:
+  data:
+    driver: local
+  projects:
+    driver: local
+  outputs:
+    driver: local
+  memory:
+    driver: local
+
+# Notas de uso:
+# 
+# 1. Iniciar sandbox:
+#    docker-compose -f docker-compose.sandbox.yml up -d
+#
+# 2. Ver logs:
+#    docker-compose -f docker-compose.sandbox.yml logs -f
+#
+# 3. Detener:
+#    docker-compose -f docker-compose.sandbox.yml down
+#
+# 4. Para desarrollo (sin sandbox):
+#    Descomentar la configuración en mcporter.json
+#
+# SECURITY BENEFITS:
+# - Filesystem: Solo puede acceder a /data, /projects, /outputs
+# - No puede escribir en /home del host
+# - No puede acceder a ~/.ssh, ~/.aws, etc.
+# - Si el contenedor es comprometido, el daño es limitado
+# - Read-only por defecto previene modificaciones

@@ -1,0 +1,269 @@
+{
+  "filesystem": {
+    "allowed_directories": [
+      "/home/user/.openclaw/workspace/data",
+      "/home/user/.openclaw/workspace/projects",
+      "/home/user/.openclaw/workspace/outputs",
+      "/home/user/.openclaw/workspace/memory",
+      "/home/user/.openclaw/workspace/agents",
+      "/home/user/.openclaw/workspace/skills"
+    ],
+    "blocked_patterns": [
+      "**/.ssh/**",
+      "**/.aws/**",
+      "**/.git-credentials",
+      "**/id_rsa",
+      "**/id_dsa",
+      "**/.env",
+      "**/credentials.json",
+      "**/api_key*",
+      "**/token*",
+      "**/password*",
+      "~/.ssh/**",
+      "~/.aws/**",
+      "~/.git-credentials",
+      "/etc/**",
+      "/root/**",
+      "/var/log/**",
+      "**/authorized_keys",
+      "**/*.pem",
+      "**/*.key",
+      "**/secrets/**",
+      "**/.npmrc",
+      "**/.pypirc"
+    ],
+    "readonly_extensions": [
+      ".key",
+      ".pem",
+      ".pub",
+      ".env",
+      ".credentials"
+    ],
+    "max_file_size_mb": 100
+  },
+  "fetch": {
+    "allowed_domains": [
+      "github.com",
+      "raw.githubusercontent.com",
+      "arxiv.org",
+      "wikipedia.org",
+      "*.readthedocs.io",
+      "*.readthedocs.org",
+      "docs.python.org",
+      "numpy.org",
+      "pandas.pydata.org",
+      "scikit-learn.org",
+      "xgboost.readthedocs.io",
+      "kaggle.com",
+      "paperswithcode.com",
+      "huggingface.co",
+      "medium.com",
+      "stackoverflow.com"
+    ],
+    "blocked_domains": [
+      "localhost",
+      "127.0.0.1",
+      "0.0.0.0",
+      "*.local",
+      "192.168.*",
+      "10.*.*.*"
+    ],
+    "max_chars": 50000,
+    "max_requests_per_minute": 30,
+    "prompt_injection_patterns": [
+      "<script>",
+      "javascript:",
+      "onerror=",
+      "onclick=",
+      "onload=",
+      "onmouseover=",
+      "{{",
+      "{%",
+      "eval(",
+      "base64",
+      "decodeURIComponent",
+      "String.fromCharCode",
+      "document.cookie",
+      "localStorage",
+      "sessionStorage"
+    ]
+  },
+  "brave-search": {
+    "allowed_domains": [
+      "github.com",
+      "wikipedia.org",
+      "arxiv.org",
+      "paperswithcode.com",
+      "kaggle.com",
+      "stackoverflow.com",
+      "medium.com",
+      "dev.to",
+      "towardsdatascience.com",
+      "huggingface.co",
+      "reddit.com"
+    ],
+    "blocked_domains": [
+      "localhost",
+      "127.0.0.1",
+      "*.local"
+    ],
+    "max_results": 20,
+    "safe_search": true,
+    "max_requests_per_minute": 10
+  },
+  "exa-search": {
+    "allowed_types": [
+      "paper",
+      "article",
+      "blog",
+      "code",
+      "github"
+    ],
+    "blocked_types": [
+      "adult",
+      "malware"
+    ],
+    "max_results": 20,
+    "max_requests_per_minute": 10
+  },
+  "firecrawl": {
+    "allowed_domains": [
+      "github.com",
+      "wikipedia.org",
+      "arxiv.org",
+      "paperswithcode.com",
+      "kaggle.com",
+      "stackoverflow.com",
+      "medium.com",
+      "dev.to",
+      "towardsdatascience.com",
+      "huggingface.co"
+    ],
+    "blocked_domains": [
+      "localhost",
+      "127.0.0.1",
+      "*.local",
+      "facebook.com",
+      "twitter.com",
+      "instagram.com"
+    ],
+    "max_pages": 50,
+    "prompt_injection_check": true,
+    "javascript_rendering": false,
+    "max_requests_per_minute": 5
+  },
+  "pdf-parser": {
+    "allowed_sources": [
+      "arxiv.org",
+      "paperswithcode.com",
+      "github.com",
+      "wikipedia.org"
+    ],
+    "blocked_sources": [
+      "localhost",
+      "127.0.0.1"
+    ],
+    "max_file_size_mb": 50,
+    "max_pages": 100
+  },
+  "playwright": {
+    "allowed_urls": [
+      "github.com",
+      "wikipedia.org",
+      "arxiv.org",
+      "paperswithcode.com",
+      "kaggle.com",
+      "stackoverflow.com",
+      "medium.com"
+    ],
+    "blocked_urls": [
+      "localhost",
+      "127.0.0.1",
+      "*.local",
+      "**/admin",
+      "**/login",
+      "**/wp-admin",
+      "**/phpmyadmin"
+    ],
+    "headless": true,
+    "javascript_enabled": false,
+    "timeout_seconds": 30,
+    "max_requests_per_minute": 10
+  },
+  "notion": {
+    "workspace_access": "readwrite",
+    "allowed_databases": [
+      "research",
+      "knowledge_base",
+      "projects"
+    ],
+    "requires_auth": true,
+    "api_key_env_var": "NOTION_API_KEY"
+  },
+  "git": {
+    "allowed_commands": [
+      "status",
+      "diff",
+      "log",
+      "show",
+      "branch",
+      "checkout",
+      "add",
+      "commit",
+      "fetch",
+      "pull",
+      "grep"
+    ],
+    "blocked_commands": [
+      "push",
+      "push --force",
+      "reset --hard",
+      "clean -fd",
+      "rm -rf",
+      "filter-branch",
+      "rebase",
+      "clone",
+      "init",
+      "config"
+    ],
+    "require_confirmation": [
+      "push",
+      "commit -am",
+      "checkout -b",
+      "add -A"
+    ],
+    "max_commits_per_minute": 10
+  },
+  "sqlite": {
+    "allowed_databases": [
+      "/home/user/.openclaw/workspace/data/galileo.db"
+    ],
+    "blocked_operations": [
+      "DROP DATABASE",
+      "DROP SCHEMA",
+      "DROP TABLE",
+      "ALTER TABLE",
+      "ATTACH",
+      "DETACH",
+      "PRAGMA"
+    ],
+    "max_rows_per_query": 10000,
+    "max_queries_per_minute": 100
+  },
+  "rate_limiting": {
+    "enabled": true,
+    "global_max_per_minute": 100,
+    "alert_threshold": 80
+  },
+  "alerts": {
+    "enabled": true,
+    "notify_on_block": true,
+    "critical_patterns": [
+      "ssh",
+      "aws",
+      "credentials",
+      "id_rsa",
+      "authorized_keys"
+    ]
+  }
+}

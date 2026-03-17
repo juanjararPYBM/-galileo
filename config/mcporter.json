@@ -1,0 +1,62 @@
+{
+  "mcpServers": {
+    "filesystem": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-filesystem",
+        "/home/user/.openclaw/workspace/data"
+      ]
+    },
+    "memory": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-memory",
+        "--storage",
+        "/home/user/.openclaw/workspace/memory/mcp-storage"
+      ]
+    },
+    "git": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-git"
+      ]
+    },
+    "sqlite": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-sqlite",
+        "/home/user/.openclaw/workspace/data/database.db"
+      ]
+    },
+    "fetch": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-fetch"
+      ]
+    },
+    "brave-search": {
+      "command": "npx -y @modelcontextprotocol/server-brave-search"
+    },
+    "exa-search": {
+      "command": "npx -y @exa-ai/mcp-server"
+    },
+    "firecrawl": {
+      "command": "npx -y @firecrawl/firecrawl-mcp-server"
+    },
+    "pdf-parser": {
+      "command": "npx -y @modelcontextprotocol/server-pdf"
+    },
+    "playwright": {
+      "command": "npx -y @playwright/mcp-server"
+    },
+    "notion": {
+      "command": "npx -y notion-calendar-mcp"
+    }
+  },
+  "imports": []
+}

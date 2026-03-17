@@ -1,0 +1,5 @@
+.openclaw/
+data/
+memory/mcp-storage/
+*.log
+node_modules/
