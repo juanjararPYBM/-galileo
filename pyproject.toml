@@ -1,0 +1,40 @@
+[project]
+name = "scraper"
+version = "0.1.0"
+description = "Modulo de scraping reutilizable: selectores adaptativos (Scrapling) y lenguaje natural (ScrapeGraphAI)"
+readme = "README.md"
+authors = [
+    { name = "Claude", email = "noreply@anthropic.com" }
+]
+requires-python = ">=3.12"
+dependencies = [
+    "scrapling[all]==0.4.15",
+    "scrapegraphai==2.2.4",
+    "typer==0.27.2",
+    "rich==15.0.0",
+    "pydantic==2.13.5",
+    "pydantic-settings==2.15.0",
+    "pyyaml==6.0.3",
+    "protego==0.6.2",
+]
+
+[build-system]
+requires = ["uv_build>=0.8.17,<0.9.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pytest==9.1.1",
+    "pytest-cov==7.1.0",
+]
+
+[project.scripts]
+scraper = "scraper.cli:main"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "network: test que necesita internet (sitios publicos de practica)",
+    "llm: test que necesita un modelo de lenguaje (Ollama u otro proveedor)",
+]
+filterwarnings = ["ignore::DeprecationWarning"]

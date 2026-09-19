@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en"><head><title>Books to Scrape</title></head>
+<body>
+  <!-- Mismo contenido, estructura y clases COMPLETAMENTE distintas:
+       article.product_pod -> div.catalogue-entry, h3 -> h2, p.price_color -> span.amount,
+       y un nivel extra de anidamiento. Ningun selector de books_v1 encuentra nada aqui. -->
+  <main id="catalogue">
+    <div class="entry-list">
+      <div class="catalogue-entry">
+        <div class="entry-body">
+          <h2 class="entry-heading"><a href="catalogue/a-light-in-the-attic_1000/index.html" title="A Light in the Attic">A Light in the ...</a></h2>
+          <div class="entry-pricing">
+            <span class="amount">£51.77</span>
+            <span class="stock-state">In stock</span>
+          </div>
+        </div>
+      </div>
+      <div class="catalogue-entry">
+        <div class="entry-body">
+          <h2 class="entry-heading"><a href="catalogue/tipping-the-velvet_999/index.html" title="Tipping the Velvet">Tipping the Velvet</a></h2>
+          <div class="entry-pricing">
+            <span class="amount">£53.74</span>
+            <span class="stock-state">In stock</span>
+          </div>
+        </div>
+      </div>
+      <div class="catalogue-entry">
+        <div class="entry-body">
+          <h2 class="entry-heading"><a href="catalogue/soumission_998/index.html" title="Soumission">Soumission</a></h2>
+          <div class="entry-pricing">
+            <span class="amount">£50.10</span>
+            <span class="stock-state">Out of stock</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+</body></html>

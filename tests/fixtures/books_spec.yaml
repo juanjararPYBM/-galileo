@@ -1,0 +1,14 @@
+name: books
+item_selector: "article.product_pod"
+fields:
+  titulo:
+    selector: "h3 a::attr(title)"
+  precio:
+    selector: ".price_color::text"
+  disponibilidad:
+    selector: ".availability::text"
+  enlace:
+    selector: "h3 a::attr(href)"
+pagination:
+  next_selector: "li.next a::attr(href)"
+  max_pages: 3

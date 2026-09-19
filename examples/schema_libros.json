@@ -1,0 +1,18 @@
+{
+  "type": "object",
+  "properties": {
+    "libros": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "titulo": { "type": "string" },
+          "precio": { "type": "string" },
+          "disponibilidad": { "type": "string" }
+        },
+        "required": ["titulo", "precio"]
+      }
+    }
+  },
+  "required": ["libros"]
+}
