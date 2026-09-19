@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 from pathlib import Path
 from typing import Any, Optional
@@ -113,6 +114,96 @@ def run_command(
     if out:
         console.print(f"[green]guardado:[/green] {write_result(result, out, fmt)}")
     raise typer.Exit(0 if result.ok else 1)
+
+
+@app.command("batch")
+def batch_command(
+    urls_file: Path = typer.Option(
+        ..., "--urls-file", exists=True, help="Fichero con una URL por línea (# = comentario)."
+    ),
+    spec: Path = typer.Option(..., "--spec", exists=True, help="Spec de selectores (YAML/JSON)."),
+    mode: str = typer.Option("fetcher", "--mode", help=f"Modo: {', '.join(MODES)}."),
+    out: Optional[Path] = typer.Option(None, "--out", help="JSON con todos los resultados."),
+    concurrency: Optional[int] = typer.Option(
+        None, "--concurrency", "-c", help="Descargas simultáneas (por defecto, la de .env)."
+    ),
+    sequential: bool = typer.Option(
+        False, "--sequential", help="Sin concurrencia, pero reutilizando la sesión."
+    ),
+    max_pages: Optional[int] = typer.Option(None, "--max-pages"),
+    no_adaptive: bool = typer.Option(False, "--no-adaptive"),
+    ignore_robots: bool = typer.Option(False, "--ignore-robots", help="DESACTIVA robots.txt."),
+    rate_limit: Optional[float] = typer.Option(None, "--rate-limit"),
+    verbose: bool = typer.Option(False, "--verbose", "-v"),
+) -> None:
+    """Scrapea muchas URLs reutilizando sesión por dominio, en paralelo por defecto.
+
+    El rate limit por dominio se sigue aplicando: la concurrencia acelera cuando hay
+    varios sitios, no cuando machacas uno solo.
+    """
+    setup_logging(verbose=verbose)
+    settings = _settings_from_flags(ignore_robots, rate_limit, no_adaptive)
+    parsed = load_spec(spec)
+    if max_pages is not None and parsed.pagination:
+        parsed.pagination.max_pages = max_pages
+
+    urls = _read_urls(urls_file)
+    if not urls:
+        console.print(f"[red]error:[/red] {urls_file} no tiene ninguna URL")
+        raise typer.Exit(2)
+
+    engine = ScraplingEngine(settings=settings, mode=mode)  # type: ignore[arg-type]
+    dominios = len(ScraplingEngine._group_by_domain(urls))
+    console.print(
+        f"[dim]{len(urls)} URLs · {dominios} dominio(s) · "
+        f"{'secuencial' if sequential else f'{concurrency or settings.concurrency} en paralelo'}[/dim]"
+    )
+
+    if sequential:
+        resultados = engine.scrape_many(urls, parsed)
+    else:
+        resultados = asyncio.run(engine.ascrape_many(urls, parsed, concurrency=concurrency))
+
+    console.print(_batch_table(resultados))
+    fallidos = [r for r in resultados if not r.ok]
+    for resultado in fallidos:
+        console.print(f"[red]error[/red] {resultado.url}: {resultado.errors[0]}")
+    if out:
+        console.print(f"[green]guardado:[/green] {write_many(resultados, out)}")
+    raise typer.Exit(0 if not fallidos else 1)
+
+
+def _read_urls(path: Path) -> list[str]:
+    urls: list[str] = []
+    for linea in path.read_text(encoding="utf-8").splitlines():
+        linea = linea.strip()
+        if linea and not linea.startswith("#"):
+            urls.append(linea)
+    return urls
+
+
+def _batch_table(resultados: list[ScrapeResult]) -> Table:
+    filas = sum(len(r.records) for r in resultados)
+    total = sum(r.duration_s for r in resultados)
+    tabla = Table(title=f"Lote — {len(resultados)} URLs, {filas} filas")
+    tabla.add_column("url", overflow="fold")
+    tabla.add_column("filas", justify="right")
+    tabla.add_column("págs", justify="right")
+    tabla.add_column("seg", justify="right")
+    tabla.add_column("estado")
+    for resultado in resultados[:MAX_PREVIEW_ROWS]:
+        tabla.add_row(
+            resultado.url,
+            str(len(resultado.records)),
+            str(resultado.meta.get("pages", 1)),
+            f"{resultado.duration_s:.2f}",
+            "[green]ok[/green]" if resultado.ok else "[red]error[/red]",
+        )
+    if len(resultados) > MAX_PREVIEW_ROWS:
+        tabla.caption = f"… y {len(resultados) - MAX_PREVIEW_ROWS} URLs más"
+    tabla.add_section()
+    tabla.add_row("[b]total[/b]", f"[b]{filas}[/b]", "", f"[b]{total:.2f}[/b]", "")
+    return tabla
 
 
 @app.command("ask")

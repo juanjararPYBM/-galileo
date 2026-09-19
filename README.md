@@ -75,6 +75,7 @@ Lo que más se toca:
 | `SCRAPER_MAX_RETRIES` / `SCRAPER_BACKOFF_FACTOR` | `3` / `1.0` | Reintentos con backoff exponencial. |
 | `SCRAPER_ADAPTIVE` | `true` | Selectores adaptativos. |
 | `SCRAPER_STATE_DIR` | `.scraper_state` | Dónde se guarda la huella de los elementos. |
+| `SCRAPER_CONCURRENCY` | `5` | Descargas simultáneas en `scraper batch`. |
 | `SCRAPER_LLM_PROVIDER` | `ollama` | `ollama`, `openai` o `custom`. |
 | `SCRAPER_LLM_MODEL` | `llama3.2:3b` | Modelo del motor LLM. |
 | `SCRAPER_LLM_API_KEY` | *(vacío)* | Clave del proveedor alternativo. **Solo en tu `.env` local.** |
@@ -127,6 +128,16 @@ scraper compare \
 
 Imprime las filas de cada motor y una tabla con campos, diferencias y tiempos.
 
+### `scraper batch` — muchas URLs, con sesión y en paralelo
+
+```bash
+scraper batch --urls-file urls.txt --spec examples/books_spec.yaml --out lote.json
+scraper batch --urls-file urls.txt --spec spec.yaml --concurrency 10
+scraper batch --urls-file urls.txt --spec spec.yaml --sequential   # sin concurrencia
+```
+
+`urls.txt` es una URL por línea; las líneas vacías y las que empiezan por `#` se ignoran.
+
 ### Desde Python
 
 ```python
@@ -142,6 +153,30 @@ respuesta = LLMEngine().scrape(
 )
 print(respuesta.data)
 ```
+
+Para muchas URLs, con sesión reutilizada y concurrencia:
+
+```python
+import asyncio
+from scraper import ScraplingEngine, load_spec
+
+spec = load_spec("examples/books_spec.yaml")
+motor = ScraplingEngine()
+
+# Secuencial, pero reutilizando la sesión (una conexión/navegador por dominio):
+resultados = motor.scrape_many(urls, spec)
+
+# Concurrente:
+resultados = asyncio.run(motor.ascrape_many(urls, spec, concurrency=10))
+
+# También puedes abrir la sesión a mano y hacer lo que quieras dentro:
+with motor.session("https://books.toscrape.com/"):
+    a = motor.scrape("https://books.toscrape.com/", spec)
+    b = motor.scrape("https://books.toscrape.com/catalogue/page-2.html", spec)
+```
+
+Los resultados salen **en el mismo orden que las URLs de entrada**, y cada uno lleva
+su propio error: una URL que falle no tumba el lote.
 
 Ambos devuelven un `ScrapeResult` con `url`, `engine`, `timestamp`, `data`,
 `errors`, `duration_s` y `meta`.
@@ -259,7 +294,41 @@ exactamente los mismos datos.
 
 ---
 
-## 8. Cuándo usar cada motor
+## 8. Escalar: sesiones y concurrencia
+
+Tres formas de recorrer muchas páginas, de menos a más:
+
+| Forma | Qué hace | Cuándo |
+|---|---|---|
+| `scrape()` en bucle | conexión (o navegador) nueva por página | pocas páginas |
+| `scrape_many()` | **una sesión por dominio**, secuencial | muchas páginas, un solo sitio |
+| `ascrape_many()` / `scraper batch` | sesión por dominio **+ descargas en paralelo** | muchas páginas, varios sitios |
+
+Las sesiones son **por dominio** a propósito: la reutilización de conexión es por host
+y la huella de los selectores adaptativos se guarda por sitio, así que agrupar por
+dominio mantiene ambas cosas correctas sin perder nada.
+
+**La concurrencia no se salta el rate limit.** El intervalo sigue siendo por dominio:
+lanzar 50 corrutinas contra un solo sitio no lo acelera, y así debe ser. Lo que gana
+es el solapamiento entre dominios distintos.
+
+Medido en este repo contra la réplica local (`tests/test_batch.py` lo comprueba):
+
+| Escenario | Una a una | `scrape_many` | `ascrape_many` |
+|---|---|---|---|
+| 18 páginas, modo `fetcher`, sin rate limit | 0.16 s | 0.10 s (1.6×) | 0.12 s (1.4×) |
+| 6 páginas, modo `stealth` (navegador) | 7.37 s | 4.32 s (1.7×) | **2.18 s (3.4×)** |
+| 6 páginas en 2 dominios, 0.5 s de intervalo | 2.04 s | 2.02 s | **1.03 s (2.0×)** |
+
+Dos lecturas:
+
+- En los **modos con navegador** es donde más se nota: la sesión mantiene el navegador
+  abierto con un pool de pestañas (`max_pages` = tu `--concurrency`) en vez de arrancar
+  uno nuevo por página. De 7.4 s a 2.2 s.
+- En modo `fetcher` contra localhost la ganancia es modesta porque abrir conexión no
+  cuesta casi nada; **contra un sitio real, con handshake TLS, la diferencia es mayor**.
+
+## 9. Cuándo usar cada motor
 
 **Motor de selectores (`run`)** — es el que deberías usar casi siempre:
 
@@ -284,7 +353,7 @@ ver si el spec recoge lo mismo que el modelo antes de fiarte de él.
 
 ---
 
-## 9. Tests
+## 10. Tests
 
 ```bash
 pytest -m "not network and not llm"   # por defecto: sin internet y sin modelo
@@ -293,7 +362,7 @@ pytest -m llm                         # motor LLM (se salta solo si Ollama no re
 pytest                                # todo
 ```
 
-Qué cubre la corrida por defecto (**95 tests, sin red**):
+Qué cubre la corrida por defecto (**110 tests, sin red**):
 
 - extracción por selectores, campos de lista, XPath, valores por defecto;
 - **adaptabilidad**: dos HTML con estructura distinta, misma salida;
@@ -301,7 +370,10 @@ Qué cubre la corrida por defecto (**95 tests, sin red**):
 - robots.txt (permitir/prohibir, por User-Agent, caché, `Crawl-delay`, aviso al desactivarlo);
 - rate limit por dominio y backoff exponencial, con reloj simulado (sin esperas reales);
 - validación de esquema del motor LLM, reintento único y una sola descarga por consulta;
-- salida a JSON, CSV y SQLite; los tres comandos de la CLI;
+- salida a JSON, CSV y SQLite; los cuatro comandos de la CLI;
+- **lotes**: sesión por dominio, orden de entrada preservado, dominios solapándose,
+  el rate limit por dominio respetado pese a la concurrencia, y una URL mala que no
+  tumba el resto;
 - **extremo a extremo sobre HTTP real** contra una réplica local del sitio
   (`examples/local_books_site.py`), incluidos los modos `dynamic` y `stealth`.
 
@@ -314,7 +386,7 @@ scraper run --url http://127.0.0.1:8000/ --spec examples/books_spec.yaml --max-p
 
 ---
 
-## 10. Limitaciones conocidas
+## 11. Limitaciones conocidas
 
 - **Python 3.12+ obligatorio**: `scrapegraphai` 2.x no soporta 3.11.
 - **La reubicación adaptativa no es magia.** Reubica elementos cuyo *contenido* se
@@ -340,15 +412,22 @@ scraper run --url http://127.0.0.1:8000/ --spec examples/books_spec.yaml --max-p
   fijar dónde, exporta `TIKTOKEN_CACHE_DIR=/ruta/cache`. En una red que bloquee ese
   host, `scraper ask` falla con un `ProxyError` antes de llegar a consultar el modelo.
 - **Sin sesión iniciada:** no hay login, ni cookies, ni rotación de proxies.
+- **La concurrencia no acelera un solo dominio**, por diseño: el rate limit manda. Si
+  necesitas ir más rápido en un sitio propio, baja `SCRAPER_RATE_LIMIT_SECONDS` a
+  conciencia; no subas `--concurrency` esperando que eso lo salte.
+- **En los modos con navegador, `--concurrency` son pestañas abiertas a la vez**
+  (`max_pages`). Cada pestaña consume memoria: subirlo mucho en una máquina justa
+  puede salir peor. 3–5 suele ser un buen punto.
 
-## 11. Fuera de alcance (TODO documentado, sin implementar)
+## 12. Fuera de alcance (TODO documentado, sin implementar)
 
 - Scraping con sesión iniciada en redes sociales (tipo Agent Reach).
 - Rotación de proxies de pago. *Nota: los fetchers de Scrapling ya aceptan `proxy` y
-  `proxy_rotator`; bastaría con exponerlo en `Settings` y pasarlo en `_fetch`.*
+  `proxy_rotator`; bastaría con exponerlo en `Settings` y pasarlo en `_fetch`. Las
+  sesiones ya creadas lo aceptarían igual.*
 - Programación periódica (cron / scheduler).
 - Servidor MCP propio. *Nota: Scrapling trae uno (`scrapling mcp`), sin integrar aquí.*
 
-## 12. Licencia
+## 13. Licencia
 
 Ver `LICENSE`. Scrapling es BSD-3 y ScrapeGraphAI es MIT; ambas permiten este uso.

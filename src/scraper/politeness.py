@@ -10,7 +10,7 @@ import logging
 import threading
 import time
 from dataclasses import dataclass
-from typing import Callable, Iterable
+from typing import Any, Callable, Iterable
 from urllib.parse import urlparse, urlunparse
 
 from protego import Protego
@@ -78,6 +78,121 @@ class RateLimiter:
             log.debug("Rate limit: esperando %.2fs para %s", delay, domain)
             self._sleep(delay)
         return delay
+
+
+class AsyncRateLimiter:
+    """Igual que :class:`RateLimiter`, pero sin bloquear el bucle de eventos.
+
+    El intervalo sigue siendo **por dominio**: lanzar 50 corrutinas contra el mismo
+    sitio no lo acelera, y eso es lo correcto. La concurrencia rinde cuando hay
+    varios dominios o cuando bajas el intervalo a conciencia.
+    """
+
+    def __init__(
+        self,
+        min_interval: float = 2.0,
+        clock: Clock | None = None,
+        sleeper: Callable[[float], Any] | None = None,
+    ) -> None:
+        self.min_interval = float(min_interval)
+        self._clock: Clock = clock or time.monotonic
+        self._sleep = sleeper
+        self._last: dict[str, float] = {}
+        self._overrides: dict[str, float] = {}
+        self._lock: Any = None
+
+    def set_domain_interval(self, domain: str, interval: float) -> None:
+        self._overrides[domain] = float(interval)
+
+    def interval_for(self, domain: str) -> float:
+        return max(self.min_interval, self._overrides.get(domain, 0.0))
+
+    async def wait(self, url: str) -> float:
+        import asyncio
+
+        if self._lock is None:
+            self._lock = asyncio.Lock()
+        domain = domain_of(url)
+        async with self._lock:
+            interval = self.interval_for(domain)
+            now = self._clock()
+            last = self._last.get(domain)
+            delay = 0.0
+            if last is not None and (now - last) < interval:
+                delay = interval - (now - last)
+            self._last[domain] = now + delay
+        if delay > 0:
+            log.debug("Rate limit (async): esperando %.2fs para %s", delay, domain)
+            if self._sleep is not None:
+                await self._sleep(delay)
+            else:
+                await asyncio.sleep(delay)
+        return delay
+
+
+class AsyncPolitenessGate:
+    """Puerta asíncrona: robots.txt + rate limit antes de cada petición."""
+
+    def __init__(
+        self,
+        robots: RobotsPolicy,
+        limiter: AsyncRateLimiter,
+        honor_crawl_delay: bool = True,
+    ) -> None:
+        self.robots = robots
+        self.limiter = limiter
+        self.honor_crawl_delay = honor_crawl_delay
+
+    async def before_request(self, url: str) -> float:
+        import asyncio
+
+        # La lectura de robots.txt es E/S bloqueante: fuera del bucle de eventos.
+        # Se cachea por dominio, así que solo la primera URL de cada sitio paga.
+        permitido = await asyncio.to_thread(self.robots.can_fetch, url)
+        if not permitido:
+            raise RobotsNotAllowed(f"robots.txt prohíbe acceder a {url}")
+        if self.honor_crawl_delay:
+            delay = await asyncio.to_thread(self.robots.crawl_delay, url)
+            if delay:
+                self.limiter.set_domain_interval(domain_of(url), delay)
+        return await self.limiter.wait(url)
+
+
+async def awith_retries(
+    func: Callable[[], Any],
+    policy: RetryPolicy | None = None,
+    sleeper: Callable[[float], Any] | None = None,
+    on_retry: Callable[[int, BaseException, float], None] | None = None,
+):
+    """Versión asíncrona de :func:`with_retries`."""
+    import asyncio
+
+    policy = policy or RetryPolicy()
+    last_error: BaseException | None = None
+
+    for attempt in range(policy.max_retries + 1):
+        try:
+            return await func()
+        except policy.retry_on as exc:  # type: ignore[misc]
+            last_error = exc
+            if attempt >= policy.max_retries:
+                break
+            delay = min(policy.backoff_factor * (2**attempt), policy.max_backoff)
+            if on_retry:
+                on_retry(attempt + 1, exc, delay)
+            else:
+                log.warning(
+                    "Intento %s/%s falló (%s). Reintento en %.1fs",
+                    attempt + 1,
+                    policy.max_retries,
+                    exc,
+                    delay,
+                )
+            if delay > 0:
+                await (sleeper(delay) if sleeper else asyncio.sleep(delay))
+
+    assert last_error is not None
+    raise last_error
 
 
 def _default_robots_fetcher(user_agent: str, timeout: float) -> RobotsFetcher:

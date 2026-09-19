@@ -75,6 +75,14 @@ class Settings(BaseSettings):
         description="Carpeta donde se guarda la huella de los elementos (SQLite).",
     )
 
+    concurrency: int = Field(
+        default=5,
+        ge=1,
+        description=(
+            "Peticiones simultáneas en las corridas por lotes. El rate limit por "
+            "dominio se sigue aplicando, así que esto rinde sobre todo con varios sitios."
+        ),
+    )
     browser_executable_path: str | None = Field(
         default=None,
         description=(

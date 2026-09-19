@@ -21,15 +21,35 @@ nueva posición. La huella se guarda en ``<state_dir>/elements_storage.db``
 
 from __future__ import annotations
 
+import asyncio
 import logging
-from typing import Any, Callable, Literal
+from collections import OrderedDict
+from contextlib import asynccontextmanager, contextmanager
+from typing import Any, AsyncIterator, Callable, Iterable, Iterator, Literal
 from urllib.parse import urljoin
 
 from scrapling import DynamicFetcher, Fetcher, Selector, StealthyFetcher
+from scrapling.fetchers import (
+    AsyncDynamicSession,
+    AsyncStealthySession,
+    DynamicSession,
+    FetcherSession,
+    StealthySession,
+)
 
 from ..config import Settings, get_settings
 from ..models import ScrapeResult
-from ..politeness import PolitenessGate, RateLimiter, RobotsPolicy, RetryPolicy, with_retries
+from ..politeness import (
+    AsyncPolitenessGate,
+    AsyncRateLimiter,
+    PolitenessGate,
+    RateLimiter,
+    RetryPolicy,
+    RobotsPolicy,
+    awith_retries,
+    domain_of,
+    with_retries,
+)
 from ..spec import FieldSpec, ScrapeSpec
 from .base import ScrapeEngine
 
@@ -88,6 +108,10 @@ class ScraplingEngine(ScrapeEngine):
             max_retries=self.settings.max_retries,
             backoff_factor=self.settings.backoff_factor,
         )
+        self.concurrency = max(1, self.settings.concurrency)
+        # Sesión abierta (si la hay): mientras exista, las descargas la reutilizan
+        # en vez de abrir una conexión o un navegador nuevo por página.
+        self._session: Any = None
 
     # ------------------------------------------------------------------ red
     def _selector_config(self, url: str) -> dict[str, Any]:
@@ -109,6 +133,8 @@ class ScraplingEngine(ScrapeEngine):
         headers = {"User-Agent": self.settings.user_agent}
 
         def _do() -> Selector:
+            if self._session is not None:
+                return self._session_get(self._session, url)
             if self.mode == "fetcher":
                 return Fetcher.get(
                     url,
@@ -141,6 +167,103 @@ class ScraplingEngine(ScrapeEngine):
             )
 
         response = with_retries(_do, policy=self._retry)
+        status = getattr(response, "status", None)
+        if status is not None and status >= 400:
+            raise RuntimeError(f"HTTP {status} al pedir {url}")
+        return response  # type: ignore[return-value]
+
+    def _browser_kwargs(self) -> dict[str, Any]:
+        kwargs: dict[str, Any] = {
+            "headless": True,
+            "network_idle": True,
+            "timeout": self.settings.request_timeout * 1000,
+        }
+        if self.settings.browser_executable_path:
+            kwargs["executable_path"] = self.settings.browser_executable_path
+        if self.mode == "dynamic":
+            kwargs["useragent"] = self.settings.user_agent
+        return kwargs
+
+    # ------------------------------------------------------------- sesiones
+    @contextmanager
+    def session(self, url: str) -> Iterator["ScraplingEngine"]:
+        """Abre una sesión reutilizable para ``url`` y su dominio.
+
+        Dentro del bloque, cada descarga reaprovecha la misma conexión (modo
+        ``fetcher``) o el mismo navegador con su pool de pestañas (modos con
+        navegador), en vez de abrir una nueva por página.
+
+        La sesión es **por dominio**: la huella de los selectores adaptativos se
+        guarda por sitio, y la reutilización de conexión también es por host, así
+        que agrupar por dominio no pierde nada y mantiene ambas cosas correctas.
+        """
+        selector_config = self._selector_config(url)
+        if self.mode == "fetcher":
+            manager: Any = FetcherSession(selector_config=selector_config, stealthy_headers=False)
+        else:
+            cls = StealthySession if self.mode == "stealth" else DynamicSession
+            manager = cls(
+                max_pages=self.concurrency,
+                selector_config=selector_config,
+                **self._browser_kwargs(),
+            )
+        with manager as abierta:
+            anterior, self._session = self._session, abierta
+            try:
+                yield self
+            finally:
+                self._session = anterior
+
+    @asynccontextmanager
+    async def asession(self, url: str) -> AsyncIterator["ScraplingEngine"]:
+        """Versión asíncrona de :meth:`session`."""
+        selector_config = self._selector_config(url)
+        if self.mode == "fetcher":
+            manager: Any = FetcherSession(selector_config=selector_config, stealthy_headers=False)
+        else:
+            cls = AsyncStealthySession if self.mode == "stealth" else AsyncDynamicSession
+            manager = cls(
+                max_pages=self.concurrency,
+                selector_config=selector_config,
+                **self._browser_kwargs(),
+            )
+        async with manager as abierta:
+            anterior, self._session = self._session, abierta
+            try:
+                yield self
+            finally:
+                self._session = anterior
+
+    def _session_get(self, session: Any, url: str) -> Any:
+        if self.mode == "fetcher":
+            return session.get(
+                url,
+                headers={"User-Agent": self.settings.user_agent},
+                timeout=self.settings.request_timeout,
+                follow_redirects=True,
+            )
+        return session.fetch(url)
+
+    async def _afetch(self, url: str, gate: AsyncPolitenessGate) -> Selector:
+        """Descarga asíncrona: misma cortesía y mismos reintentos que la sincrónica."""
+        await gate.before_request(url)
+        session = self._session
+
+        async def _do() -> Selector:
+            if session is not None:
+                return await self._session_get(session, url)
+            from scrapling import AsyncFetcher
+
+            return await AsyncFetcher.get(
+                url,
+                headers={"User-Agent": self.settings.user_agent},
+                timeout=self.settings.request_timeout,
+                stealthy_headers=False,
+                follow_redirects=True,
+                selector_config=self._selector_config(url),
+            )
+
+        response = await awith_retries(_do, policy=self._retry)
         status = getattr(response, "status", None)
         if status is not None and status >= 400:
             raise RuntimeError(f"HTTP {status} al pedir {url}")
@@ -370,6 +493,110 @@ class ScraplingEngine(ScrapeEngine):
             if not records:
                 result.add_error("No se extrajo ningún registro")
         return result
+
+    # ------------------------------------------------------ corridas por lotes
+    @staticmethod
+    def _group_by_domain(urls: Iterable[str]) -> "OrderedDict[str, list[str]]":
+        grupos: OrderedDict[str, list[str]] = OrderedDict()
+        for url in urls:
+            grupos.setdefault(domain_of(url), []).append(url)
+        return grupos
+
+    def scrape_many(self, urls: Iterable[str], spec: ScrapeSpec) -> list[ScrapeResult]:
+        """Varias URLs reutilizando una sesión por dominio (secuencial).
+
+        Es la opción sencilla para escalar: ahorra abrir conexión (o navegador)
+        en cada página. Si además quieres concurrencia, usa :meth:`ascrape_many`.
+        Los resultados salen en el mismo orden que las URLs de entrada.
+        """
+        urls = list(urls)
+        resultados: dict[str, ScrapeResult] = {}
+        for grupo in self._group_by_domain(urls).values():
+            with self.session(grupo[0]):
+                for url in grupo:
+                    resultados[url] = self.scrape(url, spec)
+        return [resultados[url] for url in urls]
+
+    async def _ascrape_one(
+        self,
+        url: str,
+        spec: ScrapeSpec,
+        gate: AsyncPolitenessGate,
+        semaforo: "asyncio.Semaphore",
+    ) -> ScrapeResult:
+        max_pages = spec.pagination.max_pages if spec.pagination else 1
+        with self._timed(url, mode=self.mode, adaptive=self.adaptive, spec=spec.name) as result:
+            records: list[dict[str, Any]] = []
+            pages: list[str] = []
+            healed_any = False
+            current: str | None = url
+
+            while current and len(pages) < max(1, max_pages):
+                async with semaforo:
+                    root = await self._afetch(current, gate)
+                # La extracción es trabajo de CPU con lxml (rápido) y no toca red,
+                # así que no hace falta sacarla del bucle de eventos.
+                page_records, healed = self._extract_items(root, spec)
+                healed_any = healed_any or healed
+                records.extend(page_records)
+                pages.append(current)
+                if len(pages) >= max(1, max_pages):
+                    break
+                nxt = self._next_url(root, spec, current)
+                if not nxt or nxt in pages:
+                    break
+                current = nxt
+
+            result.data = records
+            result.meta.update(
+                pages=len(pages), page_urls=pages, items=len(records), relocated=healed_any
+            )
+            if not records:
+                result.add_error("No se extrajo ningún registro")
+        return result
+
+    async def ascrape_many(
+        self,
+        urls: Iterable[str],
+        spec: ScrapeSpec,
+        concurrency: int | None = None,
+        gate: AsyncPolitenessGate | None = None,
+    ) -> list[ScrapeResult]:
+        """Varias URLs en paralelo, con una sesión por dominio.
+
+        El rate limit **se sigue aplicando por dominio**, así que lanzar 50 corrutinas
+        contra un solo sitio no lo acelera (ni debe). La concurrencia rinde cuando hay
+        varios dominios, o cuando bajas el intervalo a conciencia en un sitio propio.
+        Los resultados salen en el mismo orden que las URLs de entrada.
+        """
+        urls = list(urls)
+        limite = max(1, concurrency or self.concurrency)
+        semaforo = asyncio.Semaphore(limite)
+        gate = gate or AsyncPolitenessGate(
+            robots=RobotsPolicy(
+                user_agent=self.settings.user_agent,
+                enabled=self.settings.respect_robots,
+                timeout=self.settings.request_timeout,
+            ),
+            limiter=AsyncRateLimiter(self.settings.rate_limit_seconds),
+        )
+
+        async def por_dominio(grupo: list[str]) -> list[ScrapeResult]:
+            async with self.asession(grupo[0]):
+                return list(
+                    await asyncio.gather(
+                        *[self._ascrape_one(u, spec, gate, semaforo) for u in grupo]
+                    )
+                )
+
+        grupos = list(self._group_by_domain(urls).values())
+        por_grupo = await asyncio.gather(*[por_dominio(g) for g in grupos])
+
+        resultados: dict[str, ScrapeResult] = {}
+        for grupo, hechos in zip(grupos, por_grupo):
+            for url, resultado in zip(grupo, hechos):
+                resultados[url] = resultado
+        return [resultados[url] for url in urls]
 
     def scrape_html(self, html: str, url: str, spec: ScrapeSpec) -> ScrapeResult:
         """Extrae desde HTML ya descargado. Sin red: es la vía que usan los tests."""

@@ -12,6 +12,7 @@ from .config import Settings, get_settings
 from .engines import LLMEngine, ScrapeEngine, ScraplingEngine
 from .engines.llm_engine import AskSpec, schema_from_json_schema
 from .models import ScrapeResult
+from .politeness import AsyncPolitenessGate, AsyncRateLimiter, PolitenessGate, RateLimiter
 from .spec import FieldSpec, PaginationSpec, ScrapeSpec, load_spec, parse_spec
 
 __version__ = "0.1.0"
@@ -25,6 +26,10 @@ __all__ = [
     "AskSpec",
     "schema_from_json_schema",
     "ScrapeResult",
+    "PolitenessGate",
+    "RateLimiter",
+    "AsyncPolitenessGate",
+    "AsyncRateLimiter",
     "ScrapeSpec",
     "FieldSpec",
     "PaginationSpec",
