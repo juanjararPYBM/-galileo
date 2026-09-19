@@ -334,6 +334,11 @@ scraper run --url http://127.0.0.1:8000/ --spec examples/books_spec.yaml --max-p
   LLM solo ve la página indicada, el de selectores podría seguir paginando.
 - El motor LLM **no es determinista**: dos corridas pueden dar resultados distintos
   aunque la temperatura sea 0.
+- **La primera consulta del motor LLM necesita salida a internet** aunque el modelo
+  sea local: ScrapeGraphAI cuenta tokens con `tiktoken`, que descarga su fichero de
+  codificación la primera vez (`openaipublic.blob.core.windows.net`). Se cachea; para
+  fijar dónde, exporta `TIKTOKEN_CACHE_DIR=/ruta/cache`. En una red que bloquee ese
+  host, `scraper ask` falla con un `ProxyError` antes de llegar a consultar el modelo.
 - **Sin sesión iniciada:** no hay login, ni cookies, ni rotación de proxies.
 
 ## 11. Fuera de alcance (TODO documentado, sin implementar)
