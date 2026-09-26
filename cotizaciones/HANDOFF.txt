@@ -1,0 +1,94 @@
+HANDOFF - DOTACION CONSULTORIO DE MEDICINA GENERAL
+Fecha: 26 de septiembre de 2026
+Repositorio: juanjararPYBM/-galileo
+Rama: claude/blissful-rubin-bvrq2j (sin pull request)
+
+==================================================
+1. ESTADO
+==================================================
+La lista unificada esta lista, con valores aproximados en pesos
+colombianos (COP). Une dos fuentes:
+  - Dotacion basica de un consultorio de medicina general.
+  - Lista del Dr. Sergio Duran (PDF "Dotacion necesaria para los
+    consultorios", enviado por WhatsApp).
+
+==================================================
+2. ARCHIVOS (carpeta cotizaciones/)
+==================================================
+- dotacion_consultorio_medicina_general.xlsx
+    Hoja "Lista Unificada": #, categoria, implemento, especificacion,
+      cantidad, unidad, valor unitario aprox., valor total aprox.
+      (cantidad x valor unitario), prioridad, fuente y observaciones.
+      Al final hay 10 filas amarillas libres para agregar items.
+    Hoja "Resumen": totales por categoria, por fuente y por prioridad,
+      mas la celda "Consultorios a dotar" (multiplicador).
+- build_dotacion.py
+    Script (Python + openpyxl) que genera el Excel. Para cambiar precios
+    o items, editar las listas "items" (dotacion basica) y "duran"
+    (Dr. Duran) y ejecutar: python3 build_dotacion.py
+    La ruta de salida (variable OUT) esta fija en
+    /home/user/-galileo/cotizaciones/; ajustarla si se ejecuta en otro
+    equipo.
+- HANDOFF.txt
+    Este documento.
+
+==================================================
+3. TOTALES APROXIMADOS (1 consultorio)
+==================================================
+  Dotacion basica ........................ $27.710.000
+  Lista del Dr. Duran .................... $ 1.225.000
+  Ambas (items repetidos) ................ $   421.000
+  TOTAL (89 items) ....................... $29.356.000
+
+  Cerca de $11,4 millones son opcionales: desfibrilador DEA
+  ($6.500.000), electrocardiografo ($4.500.000) y negatoscopio
+  ($350.000).
+
+==================================================
+4. COMO SE UNIFICARON LAS LISTAS
+==================================================
+- Items del Dr. Duran que ya estaban en la dotacion basica: aparecen
+  una sola vez con fuente "Ambas" y una nota en observaciones.
+  Son: termometro, guantes de examen/desechables, gasas, algodon,
+  alcohol y dispensadores de jabon/toallas.
+- Items nuevos del Dr. Duran (25):
+    Atencion de pacientes: caja menor con llave.
+    Instrumental: kit para retiro de puntos.
+    Papeleria y oficina: lapiceros/lapices/marcadores, engrapadora,
+      clips, sacaganchos, perforadora, resmas carta, mostrador de
+      sobres y carpetas, formatos de informes, tinta y almohadilla,
+      tijeras, cinta adhesiva, pegamento, calculadora, libretas,
+      repuestos.
+    Aseo y bano: papel higienico, jabon de manos, toallas de papel,
+      ambientador.
+    Botiquin: botiquin (gabinete), curitas, medicamentos basicos,
+      ibuprofeno 400 mg.
+
+==================================================
+5. PENDIENTES
+==================================================
+[ ] Confirmar cuantos consultorios se cotizan. El PDF dice: "Para el
+    consultorio 1104 se necesita la misma dotacion que se tiene en el
+    consultorio 1105-01". La celda amarilla "Consultorios a dotar" en
+    la hoja Resumen esta en 1. Si se cotizan ambos, poner 2.
+[ ] Definir con el Dr. Duran el listado de "Medicamentos basicos"
+    (hoy es un lote estimado de $100.000).
+[ ] Pedir 2 o 3 cotizaciones formales a proveedores. Los precios son
+    estimados, no cotizaciones reales; pueden variar entre 20 % y 30 %
+    segun marca y proveedor.
+[ ] Confirmar la prioridad (Obligatorio / Recomendado / Opcional) con
+    la Secretaria de Salud. Es orientativa, segun la Resolucion 3100
+    de 2019 (habilitacion de consulta externa).
+[ ] Decidir si se incluyen los equipos opcionales (DEA,
+    electrocardiografo, negatoscopio).
+
+==================================================
+6. ADVERTENCIAS
+==================================================
+- Las formulas no se pudieron verificar dentro del archivo porque
+  LibreOffice no funciona en el entorno donde se genero. Se calculan
+  al abrir el archivo en Excel o Google Sheets. Los totales se
+  verificaron por separado y coinciden con la seccion 3.
+- Los equipos biomedicos requieren registro INVIMA, hoja de vida y
+  plan de mantenimiento/calibracion.
+- Las cantidades de consumibles son para aproximadamente 1 mes.
