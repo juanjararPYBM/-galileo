@@ -201,6 +201,8 @@ Signos vitales, antropometría, oximetría de pulso y peso/talla para tamizaje n
 
 ---
 
+> **Cursos y capacitaciones que habilitan cada examen:** ver [rutas-capacitacion-auxiliar-enfermeria.md](rutas-capacitacion-auxiliar-enfermeria.md).
+
 ## 8. Vacíos y puntos que conviene verificar en la fuente primaria
 
 1. **Res. 1644 de 2026:** cotejar el número de artículo de los fragmentos sobre telexperticia, nodo remisor y punto de enlace en el PDF oficial del MSPS. Revisar también si trae requisitos expresos de formación para el personal de apoyo.
