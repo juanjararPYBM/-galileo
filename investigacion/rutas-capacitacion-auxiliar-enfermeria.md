@@ -4,6 +4,13 @@
 > **Corte:** 8 de noviembre de 2026.
 > **Advertencia de método:** la oferta de cursos cambia con frecuencia y muchas convocatorias son departamentales. Antes de inscribir personal, confirme la oferta vigente con el INS, el Laboratorio de Salud Pública (LSP) departamental y la secretaría de salud.
 
+> **ACTUALIZACIÓN (8 de noviembre de 2026, texto oficial verificado):**
+> - **Curso de pruebas rápidas (Res. 1314, anexo, num. 4.2.8):** es presencial; exige 100 % de asistencia, al menos 80 % en la prueba teórica y 100 % en el examen práctico. La constancia debe incluir nombre, identificación y horas.
+> - **Quién puede dar el curso (art. 3):** el INS, los LSP, las IES y las instituciones de educación para el trabajo, y los laboratorios clínicos que sean escenario de práctica.
+> - **Malaria (Res. 2073, art. 18.4):** exige un *"certificado de habilidades y competencias para la lectura de pruebas rápidas para el diagnóstico de malaria o microscopia, expedido por el Laboratorio Departamental de Salud Pública"*.
+> - **Citología (Res. 3100, num. 11.3.13):** el auxiliar solo puede tomarla en zonas especiales de dispersión geográfica.
+> - **Tamizaje neonatal:** queda como zona gris; ver el [listado corregido](listado-paraclinicos-auxiliar-enfermeria.md).
+
 ---
 
 ## 1. Reglas generales: qué "habilita" y qué no

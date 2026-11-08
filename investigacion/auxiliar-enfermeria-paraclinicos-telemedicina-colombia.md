@@ -6,6 +6,13 @@
 > - **[LITERAL]**: texto que aparece igual en al menos una compilación oficial.
 > - **[SÍNTESIS]**: contenido confirmado, pero la redacción exacta o el número del artículo deben cotejarse con el Diario Oficial antes de citarlo en un documento formal.
 
+> **ACTUALIZACIÓN (8 de noviembre de 2026, texto oficial verificado):** los fragmentos se cotejaron en las fuentes oficiales desde el PC de escritorio. Las transcripciones están en [`fragmentos-literales/`](fragmentos-literales/), y el **listado corregido** está en [listado-paraclinicos-auxiliar-enfermeria.md](listado-paraclinicos-auxiliar-enfermeria.md). Correcciones principales frente a este documento:
+> 1. **Citología y ADN-VPH:** la Res. 3100, num. 11.3.13, admite al auxiliar solo *"En zonas especiales de dispersión geográfica"*, con constancia de formación continua.
+> 2. **VIH:** el auxiliar formado también puede hacer la **confirmación** con prueba rápida, bajo supervisión y delegación (Res. 1314, anexo, num. 4.1).
+> 3. **POCT (Res. 200 de 2021) y malaria (Res. 2073 de 2023):** no nombran al auxiliar. La malaria exige un certificado de competencias del LSP (art. 18.4).
+> 4. **Tamizaje neonatal (Res. 117 de 2026):** se refiere a "profesionales de la salud que toman la muestra". Pasa a **zona gris**.
+> 5. **VIA/VILI:** el texto literal confirma que solo la hacen profesionales de medicina o enfermería.
+
 ---
 
 ## 1. Respuesta corta
